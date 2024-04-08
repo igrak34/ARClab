@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from functools import partial
 
+import math
 class Model:
     __metaclass__ = ABCMeta
     
@@ -46,7 +47,12 @@ class UnicycleModel(Model):
     def step(self, u: np.array):
         # TODO given current state (self._state) and control inputs u
         # evaluate new state after time self._dt
-        
+        x, y, theta = self._state
+        v, w = u
+        x += v * np.cos(theta) * self._dt
+        y += v * np.sin(theta) * self._dt
+        theta += w * self._dt
+        self._state = np.array([x, y, theta])   
         return self._state
         
     @property
@@ -63,7 +69,12 @@ class AckermanModel(Model):
     def step(self, u: np.array):
         # TODO given current state (self._state) and control inputs u
         # evaluate new state after time self._dt
-        
+        x, y, theta = self._state
+        v, w = u
+        x += v * np.cos(theta) * self._dt
+        y += v * np.sin(theta) * self._dt
+        theta += (v/self.l) * np.tan(w) * self._dt
+        self._state = np.array([x, y, theta])
         return self._state
         
     @property
@@ -105,8 +116,9 @@ class Circle(Obstacle):
         self._center = center
 
     def distance(self, point: np.array):
-        # TODO calculate distance to the center of circular obstacle
-        distance = 0
+        dx = self._center[0] - point[0]
+        dy = self._center[1] - point[1]
+        distance = math.sqrt(dx*dx + dy*dy)
         return distance
     
     def _inside(self, point: np.array, radius):
@@ -266,28 +278,30 @@ class MPC:
             # TODO
             # 1. Append m first points from the optimization solution
             # to the solution list
-            
+            solution.append(result.x[:m])
             
             # 2. Update model's state with current state
-            
+            self.model.state = self.model_state
             
             # 3. Calculate next state of the model given 
             # latest control signals (at the end of solution list
             # which was updated in point 1.
-            
+            controls = solution[-1]
+            state = self.model.step(controls)
             
             # 4. Save new state as new point on path
             # Append it to path list
-            
+            path.append(state)
             
             # 5. Preserve last vector of control input by
             # removing first m values from optimization result and 
             # assigning it to control input list u
-            
+            u = result.x[m:]
             
             # 6. Extend control input list with m  
             # values, e.g. with m zeros
-            
+            u = np.append(u, np.zeros(m))
+
             # Statistics
             diff = state[0:2] - goal[0:2]
             distance = np.sqrt(np.dot(diff, diff))
@@ -336,18 +350,27 @@ class MPC:
             # iterate new state of the model
             # TODO: 1. run step on the model 
             # providing control signals
-            
+            self.model.step(u[i*m:(i+1)*m])
+            # print(u[i*m:(i+1)*m])
             # calculate distance to the goal
             # TODO: 2. calculate distance to goal based on 
             # newly evaluated state, and evaluate angle difference 
             # between current orientation and goal orientation
-            
+            dx = self.model.state[0] - self._goal[0]
+            dy = self.model.state[1] - self._goal[1]
+            dtheta = self.model.state[2] - self._goal[2]
+            distance = 100*math.sqrt(dx*dx + dy*dy) + 10*abs(dtheta)
+
+            # print(distance)
             # TODO: 3. using the distance to goal 
             # calculate cost and add it to overall 'cost'
-            
+            cost += distance
             for obstacle in self._obstacles:
-                pass
+                collision, distance_to_obs = obstacle.inside(self.model.state)
+                cost +=  20/distance_to_obs
                 # TODO: 4. evaluate possible collision with obstacles
+                if collision:
+                    cost += 100
                 
         return cost
     
