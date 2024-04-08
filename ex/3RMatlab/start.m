@@ -35,8 +35,8 @@ Kp = 10 * eye(3);
 Kd = 50 * eye(3);
 
 %define initial conditions for the manipulator
-init_qr_d1 = [0; 0; 0];
-init_qr = [0; 0; 0.0];
+init_qr_d1 = [0.1; 0; 0];
+init_qr = [0; 0.2; 0.0];
 
 qr1 = init_qr(1);
 qr2 = init_qr(2);
@@ -101,7 +101,12 @@ disp('Starting ...');
     sim_data.time = [0:sample_time:tEnd];
     sim_data.out_qr_d1 = youtput(:,1:3);
     sim_data.out_qr_d0 = youtput(:,4:6);
+    
+    figure(2)
+    plot(sim_data.time,additional.k(1,:)-additional.qchd(1,:),sim_data.time,additional.k(2,:)-additional.qchd(2,:),sim_data.time,additional.k(3,:)-additional.qchd(3,:))
 
+    figure(3)
+    plot3(additional.k(1,:),additional.k(2,:),additional.k(3,:),additional.qchd(1,:),additional.qchd(2,:),additional.qchd(3,:))
 
 
 
