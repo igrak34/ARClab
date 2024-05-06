@@ -2,7 +2,8 @@
 ADC1.Channel-1\#ChannelRegularConversion=ADC_CHANNEL_12
 ADC1.ClockPrescaler=ADC_CLOCK_ASYNC_DIV8
 ADC1.ContinuousConvMode=DISABLE
-ADC1.IPParameters=Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,OffsetNumber-1\#ChannelRegularConversion,NbrOfConversionFlag,ClockPrescaler,master,ContinuousConvMode,Overrun
+ADC1.ExternalTrigConv=ADC_EXTERNALTRIG_T6_TRGO
+ADC1.IPParameters=Rank-1\#ChannelRegularConversion,Channel-1\#ChannelRegularConversion,SamplingTime-1\#ChannelRegularConversion,OffsetNumber-1\#ChannelRegularConversion,NbrOfConversionFlag,ClockPrescaler,master,ContinuousConvMode,Overrun,ExternalTrigConv
 ADC1.NbrOfConversionFlag=1
 ADC1.OffsetNumber-1\#ChannelRegularConversion=ADC_OFFSET_NONE
 ADC1.Overrun=ADC_OVR_DATA_PRESERVED

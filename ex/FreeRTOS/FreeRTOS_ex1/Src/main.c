@@ -80,25 +80,39 @@ void measureTask(void *args) {
 	TickType_t xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();
 	for (;;) {
-		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(100));
-		HAL_ADC_Start(&hadc1);
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
+//		HAL_ADC_Start(&hadc1);
 		if(HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
-			xSemaphoreTake(mutex, portMAX_DELAY);
-			measurement = HAL_ADC_GetValue(&hadc1);
-			xSemaphoreGive(mutex);
+			if(xSemaphoreTake(mutex, portMAX_DELAY) == pdTRUE) {
+				measurement = HAL_ADC_GetValue(&hadc1);
+				xSemaphoreGive(mutex);
+				xEventGroupSetBits(measurementReadyEventGroup, 0x01);
+			}
 		}
-		vTaskDelay(pdMS_TO_TICKS(1000));
 	}
 }
 
 void commTask(void *args) {
-	TickType_t xLastWakeTime;
-	xLastWakeTime = xTaskGetTickCount();
+//	TickType_t xLastWakeTime;
+//	xLastWakeTime = xTaskGetTickCount();
+	uint16_t adc_value = 0;
 	for (;;) {
-		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
-		xSemaphoreTake(mutex, portMAX_DELAY);
-		printf("ADC: %d, Time: %d ms\n\r", measurement, HAL_GetTick());
-		xSemaphoreGive(mutex);
+		EventBits_t bits = xEventGroupWaitBits(measurementReadyEventGroup, 0x01,
+					                                               pdTRUE, pdFALSE, pdMS_TO_TICKS(400));
+//		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
+		if (bits & 0x01) {
+		    xSemaphoreTake(mutex, portMAX_DELAY);
+		    adc_value = measurement;
+		    xSemaphoreGive(mutex);
+		    printf("[FreeRTOS2] ADC: %d, Time: %d ms\n\r", adc_value, HAL_GetTick());
+		}
+		else {
+			printf("no new data\n\r");
+		}
+
+
+
+
 	}
 }
 
@@ -141,29 +155,29 @@ int main(void)
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 	// --> start TIM6 in interrupt mode
 //	HAL_TIM_Base_Start_IT(&htim6);
-	HAL_TIM_Base_Start(&htim6);
+	HAL_TIM_Base_Start_IT(&htim6);
 	// --> start ADC1
 	HAL_ADC_Start(&hadc1);
 	// --> create a mutex
-//	mutex = xSemaphoreCreateMutex();
-//	// --> create all necessary tasks
-//	xTaskCreate(measureTask, "MeasureTask", 128, NULL, 1, NULL);
-//	xTaskCreate(commTask, "CommTask", 128, NULL, 1, NULL);
+	mutex = xSemaphoreCreateMutex();
+	// --> create all necessary tasks
+	xTaskCreate(measureTask, "MeasureTask", 128, NULL, 1, NULL);
+	xTaskCreate(commTask, "CommTask", 128, NULL, 1, NULL);
 	printf("Starting!\r\n");
 	// --> start FreeRTOS scheduler
-//	measurementReadyEventGroup = xEventGroupCreate();
-//	vTaskStartScheduler();
+	measurementReadyEventGroup = xEventGroupCreate();
+	vTaskStartScheduler();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-		HAL_ADC_Start(&hadc1);
-		if(HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK){
-			measurement = HAL_ADC_GetValue(&hadc1);
-			printf("ADC: %d, time: %d\n\r", measurement, HAL_GetTick());
-		}
-		HAL_Delay(1000);
+//		HAL_ADC_Start(&hadc1);
+//		if(HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK){
+//			measurement = HAL_ADC_GetValue(&hadc1);
+//			printf("ADC: %d, time: %d\n\r", measurement, HAL_GetTick());
+//		}
+//		HAL_Delay(1000);
 
 
     /* USER CODE END WHILE */

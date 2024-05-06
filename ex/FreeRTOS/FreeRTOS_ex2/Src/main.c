@@ -27,7 +27,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stdio.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "queue.h"
 // --> include all necessary headers for
 // printf() redirection
 // FreeRTOS related headers
@@ -78,28 +82,64 @@ QueueHandle_t queue;
 
 void measureTask(void *args) {
 	TickType_t xLastWakeTime;
-	BaseType_t xStatus;
-
 	xLastWakeTime = xTaskGetTickCount();
 
 	for (;;) {
-
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(300));
+		if(xQueueSend(queue, (void*)&measurement, (TickType_t)10) != pdPASS ) {
+			xSemaphoreTake(mutex, portMAX_DELAY);
+			queueError = QueueWriteProblem;
+			xSemaphoreGive(mutex);
+		}
+		else {
+			xSemaphoreTake(mutex, portMAX_DELAY);
+			queueError = QueueOK;
+			xSemaphoreGive(mutex);
+		}
 	}
 }
 
 void commTask(void *args) {
 	TickType_t xLastWakeTime;
+	TickType_t delay = (TickType_t)0;
 	uint16_t measurement_local = 0;
 	uint16_t flag_local;
-	uint16_t histeresis = 0;
 	BaseType_t queue_size;
 	BaseType_t xStatus;
 
 	xLastWakeTime = xTaskGetTickCount();
 
 	for (;;) {
+		queue_size = uxQueueMessagesWaiting(queue);
+		if(queue_size < 4) {
+			delay = pdMS_TO_TICKS(500);
+		} else if (queue_size > 12) {
+			delay = pdMS_TO_TICKS(100);
+		}
+		vTaskDelayUntil(&xLastWakeTime, delay);
+		if(queue_size == 0) {
+			xSemaphoreTake(mutex, portMAX_DELAY);
+			queueError = QueueEmpty;
+			xSemaphoreGive(mutex);
+		}
+		else {
+			if(xQueueReceive(queue, &measurement_local, 100) != pdPASS) {
+				xSemaphoreTake(mutex, portMAX_DELAY);
+				queueError = QueueCantRead;
+				xSemaphoreGive(mutex);
+			}
+		}
+		xSemaphoreTake(mutex, portMAX_DELAY);
+		flag_local = queueError;
+		xSemaphoreGive(mutex);
+		printf("time: %d, measured value: %d, queue size: %d, error: %d\r\n", HAL_GetTick(), measurement_local, queue_size, flag_local);
 
 	}
+}
+
+int _write(int file, char *ptr, int len) {
+	HAL_UART_Transmit(&huart2, (uint8_t *) ptr, len, 50);
+	return len;
 }
 
 /* USER CODE END 0 */
@@ -138,22 +178,31 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
 	// --> start TIM1 to generate PWM signal on TIMER3 connector
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
 	// --> start TIM6 in interrupt
+  HAL_TIM_Base_Start_IT(&htim6);
 	// --> start ADC1 in DMA mode
+  HAL_ADC_Start_DMA(&hadc1, &measurement, 1);
 	// --> create a mutex
+  mutex = xSemaphoreCreateMutex();
 	// --> create a queue
+  queue = xQueueCreate(15,sizeof(uint16_t));
 	// --> create all necessary tasks
-	printf("Starting!\r\n");
+  xTaskCreate(measureTask, "MeasureTask", 128, NULL, 1, NULL);
+  xTaskCreate(commTask, "CommTask", 128, NULL, 1, NULL);
+  printf("Starting!\r\n");
 
 	// --> start FreeRTOS scheduler
+  vTaskStartScheduler();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
+//		printf("%d\r\n",measurement);
+//		HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
